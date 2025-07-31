@@ -190,7 +190,9 @@
 
   // Selección de tipo de análisis
   const analysisSelect = document.getElementById("analysisTypeSelect");
+  const metricTypeSelect = document.getElementById("metricTypeSelect");
   let analysisType = "login";
+  let metricType = "unique";
 
   // Normalize Event Value
   function getEvVal(r) {
@@ -237,6 +239,7 @@
   // Deshabilitar hasta carga de CSV
   chartTypeSelect.disabled = true;
   analysisSelect.disabled  = true;
+  metricTypeSelect.disabled = true;
   if (modeSelect) modeSelect.disabled = true;
 
   // Litepicker
@@ -271,10 +274,25 @@
     drawCurrentChart();
   });
 
-  analysisSelect.addEventListener("change", (e) => {
-    analysisType = e.target.value;
-    updateFromRows(allRows);
+  metricTypeSelect.addEventListener("change", (e) => {
+    metricType = e.target.value;
+    drawCurrentChart();
   });
+
+analysisSelect.addEventListener("change", (e) => {
+  analysisType = e.target.value;
+  if (analysisType === "navigation") {
+    chartType = "bar";
+    chartTypeSelect.value = "bar";
+    navGroupVisibility = {};
+    chartTypeSelect.disabled = true;
+    metricTypeSelect.disabled = false;
+  } else {
+    chartTypeSelect.disabled = false;
+    metricTypeSelect.disabled = true;
+  }
+  updateFromRows(allRows);
+});
 
   // Formatear entrada manual de fechas
   dateRangeInput.addEventListener('change', () => {
@@ -351,6 +369,10 @@ backButton.addEventListener("click", () => {
       if (modeSelect) modeSelect.disabled = false;
       chartTypeSelect.disabled = false;
       analysisSelect.disabled  = false;
+      // (Above disables, below enables after load)
+      chartTypeSelect.disabled = false;
+      analysisSelect.disabled  = false;
+      metricTypeSelect.disabled = analysisType !== "navigation";
 
       statusMsg.textContent = `CSV cargado: ${rows.length} filas.`;
       filterPipeline();
@@ -364,26 +386,46 @@ backButton.addEventListener("click", () => {
 
   // Estado actual
   let categoryUsers = {}, categoryCounts = {}, categoryEvents = {}, userVisibility = {};
+  let navOptionUsers = {}, navOptionCounts = {};
+  // Estado de visibilidad de navegación (Navigation legend)
+  let navGroupVisibility = {};
 
   async function updateFromRows(rows) {
     currentRows = rows;
-    const result = analysisType === "registro"
-      ? classifyRegistro(rows)
-      : classifyLogin(rows);
+    let result;
+    if (analysisType === "registro") {
+      result = classifyRegistro(rows);
+    } else if (analysisType === "navigation") {
+      result = classifyNavigation(rows);
+    } else {
+      result = classifyLogin(rows);
+    }
     categoryUsers    = result.categoryUsers;
     categoryCounts   = result.categoryCounts;
     categoryEvents   = result.categoryEvents;
     userVisibility   = Object.fromEntries(result.allUsers.map(u => [u, true]));
-    const stats = computeEventStats(rows);
-    updateMetrics(stats, {
-      onlySuccess: categoryUsers.OK.length,
-      onlyError:   categoryUsers.Error.length,
-      both:        categoryUsers["Error→OK"].length
-    });
+    if (analysisType === "navigation") {
+      navOptionUsers  = result.optionUsers;
+      navOptionCounts = result.optionCounts;
+    }
+    if (analysisType !== "navigation") {
+      const stats = computeEventStats(rows);
+      updateMetrics(stats, {
+        onlySuccess: categoryUsers.OK.length,
+        onlyError:   categoryUsers.Error.length,
+        both:        categoryUsers["Error→OK"].length
+      });
+    } else {
+      metricsSection.classList.add("hidden");
+    }
     drawCurrentChart();
   }
 
   function drawCurrentChart() {
+    if (analysisType === "navigation") {
+      drawNavigationChart();
+      return;
+    }
     if (chartType === "pie") {
       chartSection.classList.remove("hidden");
       barSection.classList.add("hidden");
@@ -393,6 +435,205 @@ backButton.addEventListener("click", () => {
       barSection.classList.remove("hidden");
       drawBar();
     }
+  }
+  // Nueva función para navegación (af_navigation)
+  const classifyNavigation = (rows) => {
+    const categoryEvents = {};       // group -> array of rows
+    const optionUsers    = {};       // group -> option -> Set of users
+    const optionCounts   = {};       // group -> option -> # events
+
+    rows.forEach((r) => {
+      if ((r["Event Name"] || "").toLowerCase() !== "af_navigation") return;
+      let obj;
+      try {
+        obj = JSON.parse(r["Event Value"] || "{}");
+      } catch { obj = {}; }
+      const group  = obj.group  || "Otro";
+      const option = obj.option || "Sin nombre";
+      // Guarda el valor completo del JSON para el nivel 3
+      r._fullEventValue = r["Event Value"];
+      r["Event Value"] = option;           // Sobrescribe para reutilizar la lógica existente
+
+      (categoryEvents[group] = categoryEvents[group] || []).push(r);
+
+      const uid = r["AppsFlyer ID"]?.trim() || "";
+      optionUsers[group]  = optionUsers[group]  || {};
+      optionCounts[group] = optionCounts[group] || {};
+      optionUsers[group][option]  = optionUsers[group][option]  || new Set();
+      optionCounts[group][option] = (optionCounts[group][option] || 0) + 1;
+      optionUsers[group][option].add(uid);
+    });
+
+    // Compose flat user lists for navigation
+    const allUsersSet = new Set();
+    Object.values(optionUsers).forEach(optMap =>
+      Object.values(optMap).forEach(set => set.forEach(u => allUsersSet.add(u)))
+    );
+    return {
+      categoryUsers: { OK: Array.from(allUsersSet), "Error→OK": [], Error: [] },
+      categoryCounts: {}, // not used for navigation
+      categoryEvents,
+      optionUsers,
+      optionCounts,
+      allUsers: Array.from(allUsersSet)
+    };
+  };
+  // Helper to build traces for navigation chart, returns {traces, allOptions}
+  function buildNavTraces() {
+    const allGroups = Object.keys(navOptionCounts);
+    const visibleGroups = allGroups.filter(g => navGroupVisibility[g] !== false);
+    const baseGroups = visibleGroups.length ? visibleGroups : allGroups;
+
+    // 1) Compute total metric per option across the base groups
+    const optionTotals = {};
+    baseGroups.forEach(g => {
+      Object.keys(navOptionCounts[g]).forEach(opt => {
+        const val = metricType === 'unique'
+          ? (navOptionUsers[g]?.[opt]?.size || 0)
+          : (navOptionCounts[g][opt] || 0);
+        optionTotals[opt] = (optionTotals[opt] || 0) + val;
+      });
+    });
+
+    // 2) Sort options descending by total metric, tie‑break alphabetically
+    const allOptions = Object.keys(optionTotals).sort((a,b) => {
+      const diff = optionTotals[b] - optionTotals[a];
+      return diff !== 0 ? diff : a.localeCompare(b);
+    });
+
+    // 3) Build trace per group (keeps legend even if hidden)
+    const traces = allGroups.map(g => {
+      const visible = navGroupVisibility[g] !== false;
+      const yVals = allOptions.map(opt => {
+        if (!visible) return 0;
+        return metricType === 'unique'
+          ? (navOptionUsers[g]?.[opt]?.size || 0)
+          : (navOptionCounts[g]?.[opt] || 0);
+      });
+      return {
+        x: allOptions,
+        y: yVals,
+        name: g,
+        type: 'bar',
+        visible: visible ? true : 'legendonly'
+      };
+    });
+    return { traces, allOptions };
+  }
+
+  // Helper to render navigation chart (bar), firstRender: whether to use newPlot
+  function renderNavChart(firstRender=false) {
+    const barDiv = document.getElementById('barChart');
+    const {traces} = buildNavTraces();
+    const layout = {
+      barmode:'group',
+      title: metricType==='unique'? 'Usuarios únicos por opción (Navigation)' : 'Repeticiones por opción (Navigation)',
+      height:400,
+      margin:{t:60,b:140,l:60,r:10},
+      xaxis:{type:'category', tickangle:-45, automargin:true},
+      yaxis:{title: metricType==='unique'? 'Usuarios únicos':'Repeticiones', automargin:true}
+    };
+    if(firstRender) {
+      Plotly.newPlot(barDiv, traces, layout, {responsive:true});
+    } else {
+      Plotly.react(barDiv, traces, layout, {responsive:true});
+    }
+  }
+
+  function drawNavigationChart() {
+    // 6) Show overlay at the very top
+    tableOverlay.classList.remove("hidden");
+
+    chartSection.classList.add("hidden");
+    barSection.classList.remove("hidden");
+    const barDiv = document.getElementById("barChart");
+    const groups = Object.keys(navOptionCounts);
+    // 3) Initialize navGroupVisibility for any group not present
+    groups.forEach(g => { if (!(g in navGroupVisibility)) navGroupVisibility[g] = true; });
+
+    // Render navigation chart with traces based on navGroupVisibility
+    renderNavChart(true);
+
+    // Remove previous listeners if present
+    barDiv.removeAllListeners && barDiv.removeAllListeners();
+    // Attach custom legend click: toggle group visibility and rerender
+    barDiv.on('plotly_legendclick', (ev)=>{
+      const grp = barDiv.data[ev.curveNumber].name;
+      navGroupVisibility[grp] = !(navGroupVisibility[grp]===true);
+      renderNavChart(false);
+      updateNavigationTable();
+      return false;
+    });
+
+    // Al hacer clic en una barra: mostrar tabla detallada
+    barDiv.on("plotly_click", (ev) => {
+      const opt = ev.points[0].x;
+      const grp = ev.points[0].data.name;
+      showEventUsers(grp, opt);
+    });
+
+    // 3) Call updateNavigationTable after plotting
+    updateNavigationTable();
+
+    // 6) Hide overlay and show table section
+    tableOverlay.classList.add("hidden");
+    tableSection.classList.remove("hidden");
+  }
+
+  // 2) Helper to build/refresh Navigation Level 1 table
+  function updateNavigationTable() {
+    currentLevel = 1;
+    tableTitle.innerHTML = '<span>Navegación</span>';
+    detailsBody.innerHTML = '';
+    // Build rows [{group, option, uniq, reps}] only for visible groups
+    let rows = [];
+    const uniqUsersSet = new Set();
+    Object.entries(navOptionUsers).forEach(([g, optMap]) => {
+      if (navGroupVisibility[g] === false) return;
+      Object.keys(optMap).forEach(opt => {
+        const userSet = navOptionUsers[g][opt] || new Set();
+        userSet.forEach(u => uniqUsersSet.add(u));
+        rows.push({
+          group: g,
+          option: opt,
+          uniq: navOptionUsers[g][opt]?.size || 0,
+          reps: navOptionCounts[g][opt] || 0
+        });
+      });
+    });
+    // Sort descending by selected metric, then group, then option
+    rows.sort((a, b) => {
+      const mA = metricType === 'unique' ? a.uniq : a.reps;
+      const mB = metricType === 'unique' ? b.uniq : b.reps;
+      if (mB !== mA) return mB - mA;
+      if (a.group !== b.group) return a.group.localeCompare(b.group);
+      return a.option.localeCompare(b.option);
+    });
+    // Set thead
+    document.querySelector('#detailsTable thead tr').innerHTML = `
+      <th>Grupo</th><th>Opción</th><th>Usuarios únicos</th><th>Repeticiones</th>
+    `;
+    // Write tbody rows, Option td includes drill button with data-group
+    rows.forEach(({ group, option, uniq, reps }) => {
+      detailsBody.innerHTML += `
+        <tr>
+          <td class="px-4 py-1">${group}</td>
+          <td class="px-4 py-1 flex items-center justify-between">
+            <span>${option}</span>
+            <button class="drill-event-button text-blue-500 hover:text-blue-700 px-1" data-group="${group}">›</button>
+          </td>
+          <td class="px-4 py-1 text-center">${uniq}</td>
+          <td class="px-4 py-1 text-center">${reps}</td>
+        </tr>
+      `;
+    });
+    // Add totals row
+    const totUniq = uniqUsersSet.size;
+    const totReps = rows.reduce((s,r)=>s+r.reps,0);
+    detailsBody.innerHTML += `<tr class="font-semibold bg-gray-50"><td class="px-4 py-1 text-right" colspan="2">Total</td><td class="px-4 py-1 text-center">${totUniq}</td><td class="px-4 py-1 text-center">${totReps}</td></tr>`;
+    // Show table and hide overlay
+    tableSection.classList.remove('hidden');
+    tableOverlay.classList.add('hidden');
   }
 
   function visibleCounts() {
@@ -554,7 +795,9 @@ backButton.addEventListener("click", () => {
   detailsBody.addEventListener('click', (e) => {
     if (e.target.classList.contains('drill-event-button')) {
       const evVal = e.target.closest('tr').querySelector('span').textContent;
-      showEventUsers(currentCategory, evVal);
+      // For navigation, set group from data-group attribute if present
+      const group = e.target.dataset.group || currentCategory;
+      showEventUsers(group, evVal);
     }
     else if (e.target.classList.contains('drill-user-button')) {
       const u = e.target.dataset.user;
@@ -565,6 +808,7 @@ backButton.addEventListener("click", () => {
   function showEventUsers(category, evVal) {
     tableOverlay.classList.remove("hidden");
     setTimeout(() => {
+      currentCategory = category;
       currentLevel = 2;
       currentEventVal = evVal;
       tableTitle.innerHTML = `<button id="tableBackButton" class="mr-2 text-gray-600 hover:text-gray-800">←</button>${category} - ${evVal}`;
@@ -628,11 +872,14 @@ backButton.addEventListener("click", () => {
       recs = recs.filter(r => {
         const name = (r['Event Name'] || '').toLowerCase();
         const val  = (r['Event Value'] || '').toLowerCase();
+        if (analysisType === 'navigation') {
+          return name === 'af_navigation';
+        }
         if (analysisType === 'login') {
           return name === 'af_login' || (name === 'ud_error' && val.includes('"ud_flow":"login"'));
-        } else {
-          return name === 'af_complete_registration' || (name === 'ud_error' && val.includes('"ud_flow":"registro"'));
         }
+        // registro
+        return name === 'af_complete_registration' || (name === 'ud_error' && val.includes('"ud_flow":"registro"'));
       });
       // sort by time asc
       recs.sort((a,b) => new Date(a['Event Time']) - new Date(b['Event Time']));
@@ -640,7 +887,7 @@ backButton.addEventListener("click", () => {
         detailsBody.innerHTML += `
           <tr>
             <td class="px-4 py-1">${r['Event Name']}</td>
-            <td class="px-4 py-1 truncate">${r['Event Value'] || ''}</td>
+            <td class="px-4 py-1 whitespace-pre-wrap break-words">${analysisType==='navigation' ? (r._fullEventValue || '') : (r['Event Value'] || '')}</td>
             <td class="px-4 py-1">${r['Event Time']}</td>
           </tr>
         `;

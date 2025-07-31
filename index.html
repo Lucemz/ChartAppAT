@@ -17,6 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/bundle.js"></script>
     <style>
       .modebar { display: none !important; }
+      th, td { white-space: pre-wrap; word-break: break-word; }
     </style>
   </head>
 
@@ -83,6 +84,18 @@
           <select id="analysisTypeSelect" class="w-full rounded border-gray-300 p-2" disabled>
             <option value="login">Login</option>
             <option value="registro">Registro</option>
+            <option value="navigation">Navigation</option>
+          </select>
+        </div>
+
+        <!-- Selector de métrica -->
+        <div class="mb-6">
+          <label for="metricTypeSelect" class="block mb-1 text-sm font-medium text-gray-700">
+            Métrica
+          </label>
+          <select id="metricTypeSelect" class="w-full rounded border-gray-300 p-2" disabled>
+            <option value="unique">Usuarios únicos</option>
+            <option value="events">Repeticiones</option>
           </select>
         </div>
       </aside>

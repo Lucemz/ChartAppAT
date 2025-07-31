@@ -18,17 +18,23 @@
     <style>
       .modebar { display: none !important; }
       th, td { white-space: pre-wrap; word-break: break-word; }
+      /* Custom styling added for polished dashboard */
+      .card { background-color:#ffffff; box-shadow:0 4px 16px rgba(0,0,0,0.06); border-radius:0.75rem; padding:1.5rem; }
+      .btn-primary { background-color:#3B82F6; color:#fff; padding:0.5rem 1rem; border-radius:0.375rem; font-weight:600; transition:background-color .2s; }
+      .btn-primary:hover { background-color:#2563EB; }
+      ::-webkit-scrollbar{ width:8px; }
+      ::-webkit-scrollbar-thumb{ background-color:rgba(59,130,246,.6); border-radius:4px; }
     </style>
   </head>
 
-  <body class="bg-gray-50 p-6 font-sans">
+  <body class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-white p-6 font-sans">
     <div class="flex">
       <!-- ========== SIDEBAR ========== -->
-      <aside class="w-64 pr-6 bg-white shadow-lg rounded-lg p-6 space-y-6">
+      <aside class="w-64 pr-6 bg-white/90 backdrop-blur-lg shadow-xl rounded-2xl p-6 space-y-6">
         <h2 class="text-xl font-semibold text-gray-800">Panel</h2>
         <button
           id="backButton"
-          class="mb-4 w-full bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded"
+          class="mb-4 w-full btn-primary flex items-center justify-center gap-2"
         >
           ← Volver
         </button>
@@ -89,7 +95,7 @@
         </div>
 
         <!-- Selector de métrica -->
-        <div class="mb-6">
+        <div id="metricContainer" class="mb-6 hidden">
           <label for="metricTypeSelect" class="block mb-1 text-sm font-medium text-gray-700">
             Métrica
           </label>
@@ -102,8 +108,8 @@
 
       <!-- ========== MAIN CONTENT ========== -->
       <main class="flex-1 mx-auto max-w-5xl">
-        <div class="sticky top-0 bg-gray-50 z-10 flex items-center justify-between mb-4 p-4">
-          <h1 class="text-3xl font-bold text-gray-800">Login & Registro Analytics</h1>
+        <div class="sticky top-0 bg-white/80 backdrop-blur z-20 flex items-center justify-between mb-6 p-6 shadow-md rounded-xl">
+          <h1 id="mainTitle" class="text-3xl font-extrabold text-gray-800 tracking-tight">Login & Registro Analytics</h1>
         </div>
 
         <!-- Bar chart -->
@@ -137,7 +143,7 @@
         <!-- Tabla de detalle -->
         <section
           id="tableSection"
-          class="relative hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow"
+          class="relative hidden mt-8 card"
         >
           <h2 id="tableTitle" class="mb-4 text-xl font-semibold"></h2>
           <div id="tableOverlay" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden z-10">

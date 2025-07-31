@@ -235,6 +235,12 @@
   const detailsBody = document.querySelector("#detailsTable tbody");
   const tableOverlay = document.getElementById("tableOverlay");
   const metricsSection = document.getElementById("metricsSection");
+  // Main title and metric container
+  const mainTitle = document.getElementById("mainTitle");
+  const metricContainer = document.getElementById("metricContainer");
+
+  // On initial load, set mainTitle and hide metricContainer
+  mainTitle.textContent = "Login Analytics";
 
   // Deshabilitar hasta carga de CSV
   chartTypeSelect.disabled = true;
@@ -287,9 +293,24 @@ analysisSelect.addEventListener("change", (e) => {
     navGroupVisibility = {};
     chartTypeSelect.disabled = true;
     metricTypeSelect.disabled = false;
+    metricContainer.classList.remove("hidden");
+    mainTitle.textContent = "Navigation Analytics";
   } else {
     chartTypeSelect.disabled = false;
     metricTypeSelect.disabled = true;
+    metricContainer.classList.add("hidden");
+    mainTitle.textContent = analysisType === "registro" ? "Registro Analytics" : "Login Analytics";
+  }
+  // Limpiar o mostrar tabla según modo seleccionado
+  if (analysisType === "navigation") {
+    detailsBody.innerHTML = "";
+    navGroupVisibility = {};           // ya estaba arriba, se mantiene
+    updateNavigationTable();           // prepara tabla inicial
+    tableSection.classList.remove("hidden");
+  } else {
+    tableSection.classList.add("hidden");  // ocultar tabla para login/registro hasta que el usuario baje de nivel
+    detailsBody.innerHTML = "";
+    tableTitle.innerHTML  = "";
   }
   updateFromRows(allRows);
 });
@@ -444,14 +465,16 @@ backButton.addEventListener("click", () => {
 
     rows.forEach((r) => {
       if ((r["Event Name"] || "").toLowerCase() !== "af_navigation") return;
+      // Use original JSON if preserved, else current value
+      const rawEV = r._fullEventValue || r["Event Value"] || "";
       let obj;
       try {
-        obj = JSON.parse(r["Event Value"] || "{}");
+        obj = JSON.parse(rawEV);
       } catch { obj = {}; }
       const group  = obj.group  || "Otro";
       const option = obj.option || "Sin nombre";
-      // Guarda el valor completo del JSON para el nivel 3
-      r._fullEventValue = r["Event Value"];
+      // Guarda el valor completo del JSON para el nivel 3 (only if not already set)
+      if (!r._fullEventValue) r._fullEventValue = r["Event Value"];
       r["Event Value"] = option;           // Sobrescribe para reutilizar la lógica existente
 
       (categoryEvents[group] = categoryEvents[group] || []).push(r);
@@ -547,6 +570,8 @@ backButton.addEventListener("click", () => {
     chartSection.classList.add("hidden");
     barSection.classList.remove("hidden");
     const barDiv = document.getElementById("barChart");
+    // Robustly purge previous chart if exists
+    if(window.Plotly && barDiv) { try { Plotly.purge(barDiv); } catch{} }
     const groups = Object.keys(navOptionCounts);
     // 3) Initialize navGroupVisibility for any group not present
     groups.forEach(g => { if (!(g in navGroupVisibility)) navGroupVisibility[g] = true; });
@@ -555,7 +580,7 @@ backButton.addEventListener("click", () => {
     renderNavChart(true);
 
     // Remove previous listeners if present
-    barDiv.removeAllListeners && barDiv.removeAllListeners();
+    if(barDiv.removeAllListeners) { barDiv.removeAllListeners(); }
     // Attach custom legend click: toggle group visibility and rerender
     barDiv.on('plotly_legendclick', (ev)=>{
       const grp = barDiv.data[ev.curveNumber].name;

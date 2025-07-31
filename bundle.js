@@ -199,7 +199,7 @@
     // Normalize displayed date range
     if (filterStart) {
       dateRangeInput.value = filterEnd && filterEnd !== filterStart
-        ? `${filterStart}-${filterEnd}`
+        ? `${filterStart} - ${filterEnd}`
         : filterStart;
     }
     let rows = allRows;
@@ -242,16 +242,20 @@
     format: "YYYY-MM-DD",
     lang: "es-PE",
     delimiter: "-",
-    setup: (picker) => {
+    setup: picker => {
       picker.on("selected", (startDate, endDate) => {
         const sd = startDate.format("YYYY-MM-DD");
         const ed = endDate ? endDate.format("YYYY-MM-DD") : sd;
         filterStart = sd;
         filterEnd   = ed !== sd ? ed : null;
-        dateRangeInput.value = filterEnd ? `${filterStart}-${filterEnd}` : filterStart;
+        // Set single date if same, else range
+        dateRangeInput.value = sd === ed ? sd : `${sd} - ${ed}`;
+        // Hide picker immediately
+        picker.hide();
+        // Apply filter
         filterPipeline();
       });
-    },
+    }
   });
 
   // Listeners de controles
@@ -302,7 +306,7 @@ backButton.addEventListener("click", () => {
   // Actualizar picker y visualización de rango
   if (filterStart) {
     dateRangeInput.value = filterEnd && filterEnd !== filterStart
-      ? `${filterStart}-${filterEnd}`
+      ? `${filterStart} - ${filterEnd}`
       : filterStart;
     picker.setDateRange(filterStart, filterEnd || filterStart);
   }
@@ -335,7 +339,7 @@ backButton.addEventListener("click", () => {
       filterStart = minDate;
       filterEnd   = maxDate !== minDate ? maxDate : null;
       // Mostrar rango en input (min-max o solo min)
-      dateRangeInput.value = filterEnd ? `${minDate}-${maxDate}` : minDate;
+      dateRangeInput.value = filterEnd ? `${minDate} - ${maxDate}` : minDate;
       // Establecer selección en el datepicker
       picker.setDateRange(minDate, filterEnd || minDate);
 

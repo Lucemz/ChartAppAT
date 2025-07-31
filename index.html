@@ -23,8 +23,8 @@
   <body class="bg-gray-50 p-6 font-sans">
     <div class="flex">
       <!-- ========== SIDEBAR ========== -->
-      <aside class="w-64 pr-6 bg-gray-100 shadow-inner rounded">
-        <h2 class="mb-4 text-xl font-semibold text-gray-800">Panel</h2>
+      <aside class="w-64 pr-6 bg-white shadow-lg rounded-lg p-6 space-y-6">
+        <h2 class="text-xl font-semibold text-gray-800">Panel</h2>
         <button
           id="backButton"
           class="mb-4 w-full bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded"
@@ -124,9 +124,9 @@
           <h2 class="mb-2 text-xl font-semibold">Usuarios</h2>
           <div class="grid grid-cols-5 gap-4 text-center">
             <div><p class="text-sm text-gray-400">Totales</p><p id="m-totalAll" class="text-2xl font-bold">0</p></div>
-            <div><p class="text-sm text-gray-400">Éxitos totales</p><p id="m-successTotal" class="text-2xl font-bold">0</p></div>
             <div><p class="text-sm text-gray-400">Solo éxito</p><p id="m-onlySuccess" class="text-2xl font-bold">0</p></div>
             <div><p class="text-sm text-gray-400">Error→Éxito</p><p id="m-both" class="text-2xl font-bold">0</p></div>
+            <div><p class="text-sm text-gray-400">Éxitos totales</p><p id="m-successTotal" class="text-2xl font-bold">0</p></div>
             <div><p class="text-sm text-gray-400">Solo error</p><p id="m-onlyError" class="text-2xl font-bold">0</p></div>
           </div>
         </section>
@@ -138,16 +138,17 @@
         >
           <h2 id="tableTitle" class="mb-4 text-xl font-semibold"></h2>
           <div class="overflow-x-auto">
-            <table id="detailsTable" class="min-w-full divide-y divide-gray-200 text-sm">
-              <thead class="bg-gray-100">
+            <table id="detailsTable" class="min-w-full divide-y divide-gray-200 text-sm table-auto shadow rounded-lg">
+              <thead class="bg-blue-600 text-white uppercase">
                 <tr>
-                  <th class="w-12 px-2 py-1 text-center font-medium text-gray-700">✓</th>
-                  <th class="px-4 py-1 text-left font-medium text-gray-700"></th>
-                  <th class="px-4 py-1 text-center font-medium text-gray-700"></th>
-                  <th class="px-4 py-1 text-center font-medium text-gray-700"></th>
+                  <th class="w-12 px-2 py-1 text-center font-medium">✓</th>
+                  <th class="px-4 py-1 text-left font-medium"></th>
+                  <th class="px-4 py-1 text-center font-medium"></th>
+                  <th class="px-4 py-1 text-center font-medium"></th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100"></tbody>
+              <tbody class="divide-y divide-gray-100">
+              </tbody>
             </table>
           </div>
         </section>
@@ -156,5 +157,23 @@
 
     <!-- Lógica principal -->
     <script src="./bundle.js"></script>
+  <script>
+    // Add hover and transition classes to table rows after table is rendered
+    document.addEventListener('DOMContentLoaded', function () {
+      const observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+          if (mutation.type === 'childList') {
+            document.querySelectorAll('#detailsTable tbody tr').forEach(tr => {
+              tr.classList.add('hover:bg-gray-50', 'transition-colors');
+            });
+          }
+        });
+      });
+      const tbody = document.querySelector('#detailsTable tbody');
+      if (tbody) {
+        observer.observe(tbody, { childList: true });
+      }
+    });
+  </script>
   </body>
 </html>

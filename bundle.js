@@ -220,7 +220,7 @@
   // Elementos DOM
   const fileInput = document.getElementById("fileUpload");
   const statusMsg = document.getElementById("statusMsg");
-  // const modeSelect = document.getElementById("modeSelect");
+  const modeSelect = document.getElementById("modeSelect");
   const dateRangeInput = document.getElementById("dateRange");
   const loader = document.getElementById("loader");
   const chartTypeSelect = document.getElementById("chartTypeSelect");
@@ -231,12 +231,13 @@
   const tableSection = document.getElementById("tableSection");
   const tableTitle = document.getElementById("tableTitle");
   const detailsBody = document.querySelector("#detailsTable tbody");
+  const tableOverlay = document.getElementById("tableOverlay");
   const metricsSection = document.getElementById("metricsSection");
 
   // Deshabilitar hasta carga de CSV
-  // modeSelect.disabled      = true;
   chartTypeSelect.disabled = true;
   analysisSelect.disabled  = true;
+  if (modeSelect) modeSelect.disabled = true;
 
   // Litepicker
   const picker = new Litepicker({
@@ -347,7 +348,7 @@ backButton.addEventListener("click", () => {
       picker.setDateRange(minDate, filterEnd || minDate);
 
       // Habilitar controles
-      modeSelect.disabled      = false;
+      if (modeSelect) modeSelect.disabled = false;
       chartTypeSelect.disabled = false;
       analysisSelect.disabled  = false;
 
@@ -501,48 +502,52 @@ backButton.addEventListener("click", () => {
   }
 
   function showTable(label) {
-    // Drill Level 1: Event summary for a category
-    currentLevel = 1;
-    currentCategory = label;
-    currentEventVal = null;
-    detailsBody.innerHTML = "";
-    tableTitle.innerHTML = `<span>${label}</span>`;
-    const mapEV = new Map();
-    categoryEvents[label].forEach(ev => {
-      const v = getEvVal(ev), id = ev["AppsFlyer ID"];
-      if (!mapEV.has(v)) mapEV.set(v, {users:new Set(), events:0});
-      const o = mapEV.get(v);
-      o.users.add(id);
-      o.events++;
-    });
-    const rows = [...mapEV.entries()].sort((a,b)=>b[1].users.size-a[1].users.size);
-    const totalUsers = new Set(categoryEvents[label].map(ev=>ev["AppsFlyer ID"])).size;
-    document.querySelector("#detailsTable thead tr").innerHTML = `
-      <th>Evento</th><th>Usuarios únicos</th><th>Repeticiones</th><th>% usuarios</th>
-    `;
-    rows.forEach(([evVal,obj]) => {
-      const pct = totalUsers ? Math.round(obj.users.size/totalUsers*100) : 0;
+    tableOverlay.classList.remove("hidden");
+    setTimeout(() => {
+      // Drill Level 1: Event summary for a category
+      currentLevel = 1;
+      currentCategory = label;
+      currentEventVal = null;
+      detailsBody.innerHTML = "";
+      tableTitle.innerHTML = `<span>${label}</span>`;
+      const mapEV = new Map();
+      categoryEvents[label].forEach(ev => {
+        const v = getEvVal(ev), id = ev["AppsFlyer ID"];
+        if (!mapEV.has(v)) mapEV.set(v, {users:new Set(), events:0});
+        const o = mapEV.get(v);
+        o.users.add(id);
+        o.events++;
+      });
+      const rows = [...mapEV.entries()].sort((a,b)=>b[1].users.size-a[1].users.size);
+      const totalUsers = new Set(categoryEvents[label].map(ev=>ev["AppsFlyer ID"])).size;
+      document.querySelector("#detailsTable thead tr").innerHTML = `
+        <th>Evento</th><th>Usuarios únicos</th><th>Repeticiones</th><th>% usuarios</th>
+      `;
+      rows.forEach(([evVal,obj]) => {
+        const pct = totalUsers ? Math.round(obj.users.size/totalUsers*100) : 0;
+        detailsBody.innerHTML += `
+          <tr>
+            <td class="px-4 py-1 flex items-center justify-between">
+              <span>${evVal}</span>
+              <button class="drill-event-button text-blue-500 hover:text-blue-700 px-1">›</button>
+            </td>
+            <td class="px-4 py-1 text-center">${obj.users.size}</td>
+            <td class="px-4 py-1 text-center">${obj.events}</td>
+            <td class="px-4 py-1 text-center">${pct}%</td>
+          </tr>
+        `;
+      });
       detailsBody.innerHTML += `
-        <tr>
-          <td class="px-4 py-1 flex items-center justify-between">
-            <span>${evVal}</span>
-            <button class="drill-event-button text-blue-500 hover:text-blue-700 px-1">›</button>
-          </td>
-          <td class="px-4 py-1 text-center">${obj.users.size}</td>
-          <td class="px-4 py-1 text-center">${obj.events}</td>
-          <td class="px-4 py-1 text-center">${pct}%</td>
+        <tr class="font-semibold bg-gray-50">
+          <td class="px-4 py-1 text-right">Total</td>
+          <td class="px-4 py-1 text-center">${totalUsers}</td>
+          <td class="px-4 py-1 text-center">${rows.reduce((s,[,o])=>s+o.events,0)}</td>
+          <td class="px-4 py-1 text-center">100%</td>
         </tr>
       `;
-    });
-    detailsBody.innerHTML += `
-      <tr class="font-semibold bg-gray-50">
-        <td class="px-4 py-1 text-right">Total</td>
-        <td class="px-4 py-1 text-center">${totalUsers}</td>
-        <td class="px-4 py-1 text-center">${rows.reduce((s,[,o])=>s+o.events,0)}</td>
-        <td class="px-4 py-1 text-center">100%</td>
-      </tr>
-    `;
-    tableSection.classList.remove("hidden");
+      tableOverlay.classList.add("hidden");
+      tableSection.classList.remove("hidden");
+    }, 0);
   }
 
   // Drill-down clicks in the details table
@@ -558,85 +563,94 @@ backButton.addEventListener("click", () => {
   });
 
   function showEventUsers(category, evVal) {
-    currentLevel = 2;
-    currentEventVal = evVal;
-    tableTitle.innerHTML = `<button id="tableBackButton" class="mr-2 text-gray-600 hover:text-gray-800">←</button>${category} - ${evVal}`;
-    detailsBody.innerHTML = '';
-    // Override table header as per requirements
-    document.querySelector('#detailsTable thead tr').innerHTML = `
-      <th>Usuario</th>
-      <th>Repeticiones</th>
-      <th></th>
-    `;
-    // build counts per user
-    const mapU = new Map();
-    categoryEvents[category]
-      .filter(r => getEvVal(r) === evVal)
-      .forEach(r => {
-        const u = r['AppsFlyer ID'];
-        mapU.set(u, (mapU.get(u) || 0) + 1);
-      });
-    [...mapU.entries()]
-      .sort((a,b) => b[1] - a[1])
-      .forEach(([u,count]) => {
-        detailsBody.innerHTML += `
-          <tr>
-            <td class="px-4 py-1 font-mono">${u}</td>
-            <td class="px-4 py-1 text-center">${count}</td>
-            <td class="px-4 py-1 text-center">
-              <button class="drill-user-button text-blue-500 hover:text-blue-700 px-1" data-user="${u}">›</button>
-            </td>
-          </tr>`;
-      });
-    // Add total repetitions row
-    const totalReps = [...mapU.values()].reduce((sum, c) => sum + c, 0);
-    detailsBody.innerHTML += `
-      <tr class="font-semibold bg-gray-50">
-        <td class="px-4 py-1 text-right">Total</td>
-        <td class="px-4 py-1 text-center">${totalReps}</td>
-        <td></td>
-      </tr>
-    `;
-    tableSection.classList.remove('hidden');
-    // back to Level1
-    document.getElementById('tableBackButton')
-      .addEventListener('click', () => showTable(category));
+    tableOverlay.classList.remove("hidden");
+    setTimeout(() => {
+      currentLevel = 2;
+      currentEventVal = evVal;
+      tableTitle.innerHTML = `<button id="tableBackButton" class="mr-2 text-gray-600 hover:text-gray-800">←</button>${category} - ${evVal}`;
+      detailsBody.innerHTML = '';
+      // Override table header as per requirements
+      document.querySelector('#detailsTable thead tr').innerHTML = `
+        <th>Usuario</th>
+        <th>Repeticiones</th>
+        <th></th>
+      `;
+      // build counts per user
+      const mapU = new Map();
+      categoryEvents[category]
+        .filter(r => getEvVal(r) === evVal)
+        .forEach(r => {
+          const u = r['AppsFlyer ID'];
+          mapU.set(u, (mapU.get(u) || 0) + 1);
+        });
+      [...mapU.entries()]
+        .sort((a,b) => b[1] - a[1])
+        .forEach(([u,count]) => {
+          detailsBody.innerHTML += `
+            <tr>
+              <td class="px-4 py-1 font-mono">${u}</td>
+              <td class="px-4 py-1 text-center">${count}</td>
+              <td class="px-4 py-1 text-center">
+                <button class="drill-user-button text-blue-500 hover:text-blue-700 px-1" data-user="${u}">›</button>
+              </td>
+            </tr>`;
+        });
+      // Add total repetitions row
+      const totalReps = [...mapU.values()].reduce((sum, c) => sum + c, 0);
+      detailsBody.innerHTML += `
+        <tr class="font-semibold bg-gray-50">
+          <td class="px-4 py-1 text-right">Total</td>
+          <td class="px-4 py-1 text-center">${totalReps}</td>
+          <td></td>
+        </tr>
+      `;
+      tableOverlay.classList.add("hidden");
+      tableSection.classList.remove('hidden');
+      // back to Level1
+      document.getElementById('tableBackButton')
+        .addEventListener('click', () => showTable(category));
+    }, 0);
   }
 
   function showUserRecords(userId) {
-    currentLevel = 3;
-    tableTitle.innerHTML = `<button id="tableBackButton" class="mr-2 text-gray-600 hover:text-gray-800">←</button>${userId}`;
-    detailsBody.innerHTML = '';
-    // Override table header as per requirements
-    document.querySelector('#detailsTable thead tr').innerHTML = `
-      <th>Evento</th>
-      <th>Descripción</th>
-      <th>Fecha</th>
-    `;
-    let recs = currentRows.filter(r => r['AppsFlyer ID'] === userId);
-    recs = recs.filter(r => {
-      const name = (r['Event Name'] || '').toLowerCase();
-      const val  = (r['Event Value'] || '').toLowerCase();
-      if (analysisType === 'login') {
-        return name === 'af_login' || (name === 'ud_error' && val.includes('"ud_flow":"login"'));
-      } else {
-        return name === 'af_complete_registration' || (name === 'ud_error' && val.includes('"ud_flow":"registro"'));
-      }
-    });
-    // sort by time asc
-    recs.sort((a,b) => new Date(a['Event Time']) - new Date(b['Event Time']));
-    recs.forEach(r => {
-      detailsBody.innerHTML += `
-        <tr>
-          <td class="px-4 py-1">${r['Event Name']}</td>
-          <td class="px-4 py-1 truncate">${r['Event Value'] || ''}</td>
-          <td class="px-4 py-1">${r['Event Time']}</td>
-        </tr>
+    tableOverlay.classList.remove("hidden");
+    setTimeout(() => {
+      currentLevel = 3;
+      tableTitle.innerHTML = `<button id="tableBackButton" class="mr-2 text-gray-600 hover:text-gray-800">←</button>${userId}`;
+      detailsBody.innerHTML = '';
+      // Override table header as per requirements
+      document.querySelector('#detailsTable thead tr').innerHTML = `
+        <th>Evento</th>
+        <th>Descripción</th>
+        <th>Fecha</th>
       `;
-    });
-    // back to Level2
-    document.getElementById('tableBackButton')
-      .addEventListener('click', () => showEventUsers(currentCategory, currentEventVal));
+      let recs = currentRows.filter(r => r['AppsFlyer ID'] === userId);
+      recs = recs.filter(r => {
+        const name = (r['Event Name'] || '').toLowerCase();
+        const val  = (r['Event Value'] || '').toLowerCase();
+        if (analysisType === 'login') {
+          return name === 'af_login' || (name === 'ud_error' && val.includes('"ud_flow":"login"'));
+        } else {
+          return name === 'af_complete_registration' || (name === 'ud_error' && val.includes('"ud_flow":"registro"'));
+        }
+      });
+      // sort by time asc
+      recs.sort((a,b) => new Date(a['Event Time']) - new Date(b['Event Time']));
+      recs.forEach(r => {
+        detailsBody.innerHTML += `
+          <tr>
+            <td class="px-4 py-1">${r['Event Name']}</td>
+            <td class="px-4 py-1 truncate">${r['Event Value'] || ''}</td>
+            <td class="px-4 py-1">${r['Event Time']}</td>
+          </tr>
+        `;
+      });
+      tableOverlay.classList.add("hidden");
+      tableSection.classList.remove('hidden');
+      // back to Level2
+      document.getElementById('tableBackButton')
+        .addEventListener('click', () => showEventUsers(currentCategory, currentEventVal));
+    }, 0);
   }
 
   function computeEventStats(rows) {

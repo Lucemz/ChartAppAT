@@ -1,10 +1,10 @@
-
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login Analytics</title>
+    <title>Login & Registro Analytics</title>
 
     <!-- Tailwind (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,13 +12,25 @@
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
     <!-- Papa Parse -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Litepicker date range picker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litepicker/dist/css/litepicker.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/litepicker/dist/bundle.js"></script>
+    <style>
+      .modebar { display: none !important; }
+    </style>
   </head>
 
   <body class="bg-gray-50 p-6 font-sans">
     <div class="flex">
       <!-- ========== SIDEBAR ========== -->
-      <aside class="w-64 pr-6">
+      <aside class="w-64 pr-6 bg-gray-100 shadow-inner rounded">
         <h2 class="mb-4 text-xl font-semibold text-gray-800">Panel</h2>
+        <button
+          id="backButton"
+          class="mb-4 w-full bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-1 rounded"
+        >
+          ← Volver
+        </button>
 
         <!-- Cargador CSV -->
         <section class="mb-6 space-y-2">
@@ -31,7 +43,10 @@
             accept=".csv,.CSV,text/csv"
             class="w-full rounded-lg border border-gray-300 p-2 shadow-sm"
           />
-          <p id="statusMsg" class="text-sm text-gray-500"></p>
+          <div class="flex items-center space-x-2">
+            <div id="loader" class="hidden h-5 w-5 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <p id="statusMsg" class="text-sm text-gray-500"></p>
+          </div>
         </section>
 
         <!-- Selector de modo -->
@@ -39,16 +54,59 @@
           <label for="modeSelect" class="block mb-1 text-sm font-medium text-gray-700">
             Agrupar por
           </label>
-          <select id="modeSelect" class="w-full rounded border-gray-300 p-2">
+          <select id="modeSelect" class="w-full rounded border-gray-300 p-2" disabled>
             <option value="users">Usuarios únicos</option>
             <option value="events">Eventos</option>
+          </select>
+        </div>
+
+        <!-- Filtro de fecha (rango único) -->
+        <div class="mb-6">
+          <label for="dateRange" class="block mb-1 text-sm font-medium text-gray-700">
+            Fecha (rango)
+          </label>
+          <input
+            id="dateRange"
+            type="text"
+            placeholder="Selecciona rango de fechas"
+            class="w-full rounded border-gray-300 p-2 cursor-pointer"
+            readonly
+          />
+        </div>
+
+        <!-- Selector de tipo de gráfico -->
+        <div class="mb-6 mt-4">
+          <label for="chartTypeSelect" class="block mb-1 text-sm font-medium text-gray-700">
+            Tipo de gráfico
+          </label>
+          <select id="chartTypeSelect" class="w-full rounded border-gray-300 p-2" disabled>
+            <option value="pie">Torta</option>
+            <option value="bar">Barras</option>
+          </select>
+        </div>
+
+        <!-- Selector de tipo de análisis -->
+        <div class="mb-6">
+          <label for="analysisTypeSelect" class="block mb-1 text-sm font-medium text-gray-700">
+            Tipo de análisis
+          </label>
+          <select id="analysisTypeSelect" class="w-full rounded border-gray-300 p-2" disabled>
+            <option value="login">Login</option>
+            <option value="registro">Registro</option>
           </select>
         </div>
       </aside>
 
       <!-- ========== MAIN CONTENT ========== -->
       <main class="flex-1 mx-auto max-w-5xl">
-        <h1 class="mb-4 text-3xl font-bold text-gray-800">Login analytics</h1>
+        <div class="sticky top-0 bg-gray-50 z-10 flex items-center justify-between mb-4 p-4">
+          <h1 class="text-3xl font-bold text-gray-800">Login & Registro Analytics</h1>
+        </div>
+
+        <!-- Bar chart -->
+        <section id="barSection" class="hidden">
+          <div id="barChart" class="mx-auto h-[400px] w-full"></div>
+        </section>
 
         <!-- Pie chart -->
         <section id="chartSection" class="hidden">
@@ -59,42 +117,17 @@
         <section id="metricsSection" class="hidden mt-8">
           <h2 class="mb-2 text-xl font-semibold">Eventos</h2>
           <div class="mb-6 grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p class="text-sm text-gray-400">Total eventos</p>
-              <p id="m-totalEvents" class="text-2xl font-bold">0</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-400">Eventos OK</p>
-              <p id="m-eventsOk" class="text-2xl font-bold">0</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-400">Eventos error</p>
-              <p id="m-eventsErr" class="text-2xl font-bold">0</p>
-            </div>
+            <div><p class="text-sm text-gray-400">Total eventos</p><p id="m-totalEvents" class="text-2xl font-bold">0</p></div>
+            <div><p class="text-sm text-gray-400">Eventos OK</p><p id="m-eventsOk" class="text-2xl font-bold">0</p></div>
+            <div><p class="text-sm text-gray-400">Eventos error</p><p id="m-eventsErr" class="text-2xl font-bold">0</p></div>
           </div>
-
           <h2 class="mb-2 text-xl font-semibold">Usuarios</h2>
           <div class="grid grid-cols-5 gap-4 text-center">
-            <div>
-              <p class="text-sm text-gray-400">Totales</p>
-              <p id="m-totalAll" class="text-2xl font-bold">0</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-400">Éxitos totales</p>
-              <p id="m-successTotal" class="text-2xl font-bold">0</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-400">Solo éxito</p>
-              <p id="m-onlySuccess" class="text-2xl font-bold">0</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-400">Error→Éxito</p>
-              <p id="m-both" class="text-2xl font-bold">0</p>
-            </div>
-            <div>
-              <p class="text-sm text-gray-400">Solo error</p>
-              <p id="m-onlyError" class="text-2xl font-bold">0</p>
-            </div>
+            <div><p class="text-sm text-gray-400">Totales</p><p id="m-totalAll" class="text-2xl font-bold">0</p></div>
+            <div><p class="text-sm text-gray-400">Éxitos totales</p><p id="m-successTotal" class="text-2xl font-bold">0</p></div>
+            <div><p class="text-sm text-gray-400">Solo éxito</p><p id="m-onlySuccess" class="text-2xl font-bold">0</p></div>
+            <div><p class="text-sm text-gray-400">Error→Éxito</p><p id="m-both" class="text-2xl font-bold">0</p></div>
+            <div><p class="text-sm text-gray-400">Solo error</p><p id="m-onlyError" class="text-2xl font-bold">0</p></div>
           </div>
         </section>
 
@@ -105,10 +138,7 @@
         >
           <h2 id="tableTitle" class="mb-4 text-xl font-semibold"></h2>
           <div class="overflow-x-auto">
-            <table
-              id="detailsTable"
-              class="min-w-full divide-y divide-gray-200 text-sm"
-            >
+            <table id="detailsTable" class="min-w-full divide-y divide-gray-200 text-sm">
               <thead class="bg-gray-100">
                 <tr>
                   <th class="w-12 px-2 py-1 text-center font-medium text-gray-700">✓</th>

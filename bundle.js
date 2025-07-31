@@ -180,6 +180,9 @@
   window.onerror = (...args) => console.error("Global error:", ...args);
 
   let allRows = [], currentRows = [], savedRows = [];
+  let currentLevel = 0;
+  let currentCategory = null;
+  let currentEventVal = null;
   let savedFilterStart = null, savedFilterEnd = null;
   let chartType = "pie";
   let filterStart = null, filterEnd = null;
@@ -217,7 +220,7 @@
   // Elementos DOM
   const fileInput = document.getElementById("fileUpload");
   const statusMsg = document.getElementById("statusMsg");
-  const modeSelect = document.getElementById("modeSelect");
+  // const modeSelect = document.getElementById("modeSelect");
   const dateRangeInput = document.getElementById("dateRange");
   const loader = document.getElementById("loader");
   const chartTypeSelect = document.getElementById("chartTypeSelect");
@@ -231,7 +234,7 @@
   const metricsSection = document.getElementById("metricsSection");
 
   // Deshabilitar hasta carga de CSV
-  modeSelect.disabled      = true;
+  // modeSelect.disabled      = true;
   chartTypeSelect.disabled = true;
   analysisSelect.disabled  = true;
 
@@ -259,9 +262,9 @@
   });
 
   // Listeners de controles
-  modeSelect.addEventListener("change", () => {
-    drawCurrentChart();
-  });
+  // modeSelect.addEventListener("change", () => {
+  //   drawCurrentChart();
+  // });
   chartTypeSelect.addEventListener("change", (e) => {
     chartType = e.target.value;
     drawCurrentChart();
@@ -392,15 +395,10 @@ backButton.addEventListener("click", () => {
   }
 
   function visibleCounts() {
-    if (modeSelect.value === "users") {
-      return ["OK","Error→OK","Error"].map(lbl =>
-        categoryUsers[lbl].filter(u => userVisibility[u]).length
-      );
-    } else {
-      return ["OK","Error→OK","Error"].map(lbl =>
-        categoryEvents[lbl].filter(ev => userVisibility[ev["AppsFlyer ID"]]).length
-      );
-    }
+    // Always users mode
+    return ["OK","Error→OK","Error"].map(lbl =>
+      categoryUsers[lbl].filter(u => userVisibility[u]).length
+    );
   }
 
   function drawPie() {
@@ -503,61 +501,142 @@ backButton.addEventListener("click", () => {
   }
 
   function showTable(label) {
+    // Drill Level 1: Event summary for a category
+    currentLevel = 1;
+    currentCategory = label;
+    currentEventVal = null;
     detailsBody.innerHTML = "";
-    tableTitle.textContent = label;
-    if (modeSelect.value === "users") {
-      const mapEV = new Map();
-      categoryEvents[label].forEach(ev => {
-        const v = getEvVal(ev), id = ev["AppsFlyer ID"];
-        if (!mapEV.has(v)) mapEV.set(v, {users:new Set(), events:0});
-        const o = mapEV.get(v);
-        o.users.add(id);
-        o.events++;
-      });
-      const rows = [...mapEV.entries()].sort((a,b)=>b[1].users.size-a[1].users.size);
-      const totalUsers = new Set(categoryEvents[label].map(ev=>ev["AppsFlyer ID"])).size;
-      document.querySelector("#detailsTable thead tr").innerHTML = `
-        <th>Evento</th><th>Usuarios únicos</th><th>Repeticiones</th><th>% usuarios</th>
-      `;
-      rows.forEach(([evVal,obj]) => {
-        const pct = totalUsers ? Math.round(obj.users.size/totalUsers*100) : 0;
-        detailsBody.innerHTML += `
-          <tr>
-            <td class="px-4 py-1">${evVal}</td>
-            <td class="px-4 py-1 text-center">${obj.users.size}</td>
-            <td class="px-4 py-1 text-center">${obj.events}</td>
-            <td class="px-4 py-1 text-center">${pct}%</td>
-          </tr>
-        `;
-      });
+    tableTitle.innerHTML = `<span>${label}</span>`;
+    const mapEV = new Map();
+    categoryEvents[label].forEach(ev => {
+      const v = getEvVal(ev), id = ev["AppsFlyer ID"];
+      if (!mapEV.has(v)) mapEV.set(v, {users:new Set(), events:0});
+      const o = mapEV.get(v);
+      o.users.add(id);
+      o.events++;
+    });
+    const rows = [...mapEV.entries()].sort((a,b)=>b[1].users.size-a[1].users.size);
+    const totalUsers = new Set(categoryEvents[label].map(ev=>ev["AppsFlyer ID"])).size;
+    document.querySelector("#detailsTable thead tr").innerHTML = `
+      <th>Evento</th><th>Usuarios únicos</th><th>Repeticiones</th><th>% usuarios</th>
+    `;
+    rows.forEach(([evVal,obj]) => {
+      const pct = totalUsers ? Math.round(obj.users.size/totalUsers*100) : 0;
       detailsBody.innerHTML += `
-        <tr class="font-semibold bg-gray-50">
-          <td class="px-4 py-1 text-right">Total</td>
-          <td class="px-4 py-1 text-center">${totalUsers}</td>
-          <td class="px-4 py-1 text-center">${rows.reduce((s,[,o])=>s+o.events,0)}</td>
-          <td class="px-4 py-1 text-center">100%</td>
+        <tr>
+          <td class="px-4 py-1 flex items-center justify-between">
+            <span>${evVal}</span>
+            <button class="drill-event-button text-blue-500 hover:text-blue-700 px-1">›</button>
+          </td>
+          <td class="px-4 py-1 text-center">${obj.users.size}</td>
+          <td class="px-4 py-1 text-center">${obj.events}</td>
+          <td class="px-4 py-1 text-center">${pct}%</td>
         </tr>
       `;
-    } else {
-      // tabla de eventos
-      categoryEvents[label].forEach(ev => {
-        detailsBody.innerHTML += `
-          <tr>
-            <td><input type="checkbox" checked data-id="${ev["AppsFlyer ID"]}" /></td>
-            <td class="font-mono">${ev["Event Time"]}</td>
-            <td>${ev["Event Name"]}</td>
-            <td class="truncate">${(ev["Event Value"]||"").slice(0,60)}</td>
-          </tr>
-        `;
-      });
-      detailsBody.innerHTML += `
-        <tr class="font-semibold bg-gray-50">
-          <td></td><td class="text-right">Totales</td><td></td>
-          <td class="text-center">${categoryEvents[label].length}</td>
-        </tr>
-      `;
-    }
+    });
+    detailsBody.innerHTML += `
+      <tr class="font-semibold bg-gray-50">
+        <td class="px-4 py-1 text-right">Total</td>
+        <td class="px-4 py-1 text-center">${totalUsers}</td>
+        <td class="px-4 py-1 text-center">${rows.reduce((s,[,o])=>s+o.events,0)}</td>
+        <td class="px-4 py-1 text-center">100%</td>
+      </tr>
+    `;
     tableSection.classList.remove("hidden");
+  }
+
+  // Drill-down clicks in the details table
+  detailsBody.addEventListener('click', (e) => {
+    if (e.target.classList.contains('drill-event-button')) {
+      const evVal = e.target.closest('tr').querySelector('span').textContent;
+      showEventUsers(currentCategory, evVal);
+    }
+    else if (e.target.classList.contains('drill-user-button')) {
+      const u = e.target.dataset.user;
+      showUserRecords(u);
+    }
+  });
+
+  function showEventUsers(category, evVal) {
+    currentLevel = 2;
+    currentEventVal = evVal;
+    tableTitle.innerHTML = `<button id="tableBackButton" class="mr-2 text-gray-600 hover:text-gray-800">←</button>${category} - ${evVal}`;
+    detailsBody.innerHTML = '';
+    // Override table header as per requirements
+    document.querySelector('#detailsTable thead tr').innerHTML = `
+      <th>Usuario</th>
+      <th>Repeticiones</th>
+      <th></th>
+    `;
+    // build counts per user
+    const mapU = new Map();
+    categoryEvents[category]
+      .filter(r => getEvVal(r) === evVal)
+      .forEach(r => {
+        const u = r['AppsFlyer ID'];
+        mapU.set(u, (mapU.get(u) || 0) + 1);
+      });
+    [...mapU.entries()]
+      .sort((a,b) => b[1] - a[1])
+      .forEach(([u,count]) => {
+        detailsBody.innerHTML += `
+          <tr>
+            <td class="px-4 py-1 font-mono">${u}</td>
+            <td class="px-4 py-1 text-center">${count}</td>
+            <td class="px-4 py-1 text-center">
+              <button class="drill-user-button text-blue-500 hover:text-blue-700 px-1" data-user="${u}">›</button>
+            </td>
+          </tr>`;
+      });
+    // Add total repetitions row
+    const totalReps = [...mapU.values()].reduce((sum, c) => sum + c, 0);
+    detailsBody.innerHTML += `
+      <tr class="font-semibold bg-gray-50">
+        <td class="px-4 py-1 text-right">Total</td>
+        <td class="px-4 py-1 text-center">${totalReps}</td>
+        <td></td>
+      </tr>
+    `;
+    tableSection.classList.remove('hidden');
+    // back to Level1
+    document.getElementById('tableBackButton')
+      .addEventListener('click', () => showTable(category));
+  }
+
+  function showUserRecords(userId) {
+    currentLevel = 3;
+    tableTitle.innerHTML = `<button id="tableBackButton" class="mr-2 text-gray-600 hover:text-gray-800">←</button>${userId}`;
+    detailsBody.innerHTML = '';
+    // Override table header as per requirements
+    document.querySelector('#detailsTable thead tr').innerHTML = `
+      <th>Evento</th>
+      <th>Descripción</th>
+      <th>Fecha</th>
+    `;
+    let recs = currentRows.filter(r => r['AppsFlyer ID'] === userId);
+    recs = recs.filter(r => {
+      const name = (r['Event Name'] || '').toLowerCase();
+      const val  = (r['Event Value'] || '').toLowerCase();
+      if (analysisType === 'login') {
+        return name === 'af_login' || (name === 'ud_error' && val.includes('"ud_flow":"login"'));
+      } else {
+        return name === 'af_complete_registration' || (name === 'ud_error' && val.includes('"ud_flow":"registro"'));
+      }
+    });
+    // sort by time asc
+    recs.sort((a,b) => new Date(a['Event Time']) - new Date(b['Event Time']));
+    recs.forEach(r => {
+      detailsBody.innerHTML += `
+        <tr>
+          <td class="px-4 py-1">${r['Event Name']}</td>
+          <td class="px-4 py-1 truncate">${r['Event Value'] || ''}</td>
+          <td class="px-4 py-1">${r['Event Time']}</td>
+        </tr>
+      `;
+    });
+    // back to Level2
+    document.getElementById('tableBackButton')
+      .addEventListener('click', () => showEventUsers(currentCategory, currentEventVal));
   }
 
   function computeEventStats(rows) {

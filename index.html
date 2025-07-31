@@ -1,0 +1,130 @@
+
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login Analytics</title>
+
+    <!-- Tailwind (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <!-- Papa Parse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  </head>
+
+  <body class="bg-gray-50 p-6 font-sans">
+    <div class="flex">
+      <!-- ========== SIDEBAR ========== -->
+      <aside class="w-64 pr-6">
+        <h2 class="mb-4 text-xl font-semibold text-gray-800">Panel</h2>
+
+        <!-- Cargador CSV -->
+        <section class="mb-6 space-y-2">
+          <label for="fileUpload" class="block text-sm font-medium text-gray-700">
+            Sube tu CSV de AppsFlyer
+          </label>
+          <input
+            id="fileUpload"
+            type="file"
+            accept=".csv,.CSV,text/csv"
+            class="w-full rounded-lg border border-gray-300 p-2 shadow-sm"
+          />
+          <p id="statusMsg" class="text-sm text-gray-500"></p>
+        </section>
+
+        <!-- Selector de modo -->
+        <div class="mb-6">
+          <label for="modeSelect" class="block mb-1 text-sm font-medium text-gray-700">
+            Agrupar por
+          </label>
+          <select id="modeSelect" class="w-full rounded border-gray-300 p-2">
+            <option value="users">Usuarios únicos</option>
+            <option value="events">Eventos</option>
+          </select>
+        </div>
+      </aside>
+
+      <!-- ========== MAIN CONTENT ========== -->
+      <main class="flex-1 mx-auto max-w-5xl">
+        <h1 class="mb-4 text-3xl font-bold text-gray-800">Login analytics</h1>
+
+        <!-- Pie chart -->
+        <section id="chartSection" class="hidden">
+          <div id="pieChart" class="mx-auto h-[400px] w-full"></div>
+        </section>
+
+        <!-- Métricas -->
+        <section id="metricsSection" class="hidden mt-8">
+          <h2 class="mb-2 text-xl font-semibold">Eventos</h2>
+          <div class="mb-6 grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p class="text-sm text-gray-400">Total eventos</p>
+              <p id="m-totalEvents" class="text-2xl font-bold">0</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Eventos OK</p>
+              <p id="m-eventsOk" class="text-2xl font-bold">0</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Eventos error</p>
+              <p id="m-eventsErr" class="text-2xl font-bold">0</p>
+            </div>
+          </div>
+
+          <h2 class="mb-2 text-xl font-semibold">Usuarios</h2>
+          <div class="grid grid-cols-5 gap-4 text-center">
+            <div>
+              <p class="text-sm text-gray-400">Totales</p>
+              <p id="m-totalAll" class="text-2xl font-bold">0</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Éxitos totales</p>
+              <p id="m-successTotal" class="text-2xl font-bold">0</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Solo éxito</p>
+              <p id="m-onlySuccess" class="text-2xl font-bold">0</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Error→Éxito</p>
+              <p id="m-both" class="text-2xl font-bold">0</p>
+            </div>
+            <div>
+              <p class="text-sm text-gray-400">Solo error</p>
+              <p id="m-onlyError" class="text-2xl font-bold">0</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tabla de detalle -->
+        <section
+          id="tableSection"
+          class="hidden mt-8 rounded-lg border border-gray-200 bg-white p-4 shadow"
+        >
+          <h2 id="tableTitle" class="mb-4 text-xl font-semibold"></h2>
+          <div class="overflow-x-auto">
+            <table
+              id="detailsTable"
+              class="min-w-full divide-y divide-gray-200 text-sm"
+            >
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="w-12 px-2 py-1 text-center font-medium text-gray-700">✓</th>
+                  <th class="px-4 py-1 text-left font-medium text-gray-700"></th>
+                  <th class="px-4 py-1 text-center font-medium text-gray-700"></th>
+                  <th class="px-4 py-1 text-center font-medium text-gray-700"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Lógica principal -->
+    <script src="./bundle.js"></script>
+  </body>
+</html>
